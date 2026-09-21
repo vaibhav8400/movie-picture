@@ -1,0 +1,11 @@
+node_modules
+.pytest_cache
+.terraform
+.terraform.tfstate.lock.info
+*.tfstate
+*.tfstate.backup
+credentials
+.pytest_cache
+screenshots
+.DS_Store
+__MACOSX
