@@ -8,9 +8,9 @@ An automated continuous integration and continuous deployment (CI/CD) pipeline b
 
 The microservices are continuously deployed to an AWS EKS cluster via AWS Elastic Load Balancers:
 
-* **Frontend Web Application:** http://<frontend-elb-hostname>
-* **Backend REST API (`/movies`):** http://<backend-elb-hostname>/movies
-* **Source Repository:** https://github.com/<your-username>/cd12354-Movie-Picture-Pipeline
+* **Frontend Web Application:** http://k8s-default-frontend-da952e01d0-84b6d63301b5ad60.elb.us-east-1.amazonaws.com
+* **Backend REST API (`/movies`):** http://k8s-default-backend-30b63eb5a6-6a51580317605966.elb.us-east-1.amazonaws.com/movies
+* **Source Repository:** https://github.com/vaibhav8400/movie-picture
 
 ---
 
@@ -20,20 +20,24 @@ The microservices are continuously deployed to an AWS EKS cluster via AWS Elasti
 
 | Workflow | Screenshot |
 | :--- | :--- |
-| Frontend CI | ![Frontend CI](screenshots/frontend-ci.png) |
-| Backend CI | ![Backend CI](screenshots/backend-ci.png) |
 | Frontend CD | ![Frontend CD](screenshots/frontend-cd.png) |
 | Backend CD | ![Backend CD](screenshots/backend-cd.png) |
+| Frontend CI | ![Frontend CI](screenshots/frontend-ci.png) |
+| Backend CI | ![Backend CI](screenshots/backend-ci.png) |
 
 ### Deployed Applications
 
-* **Frontend loading movies:**
+* **Frontend loading movies from the backend:**
 
-  ![Frontend app](screenshots/frontend-app.png)
+  ![Frontend app](screenshots/frontend-ss.png)
 
 * **Backend `/movies` response:**
 
-  ![Backend movies](screenshots/backend-movies.png)
+  ![Backend movies](screenshots/backend-ss.png)
+
+### Kubernetes Cluster State
+
+![kubectl output](screenshots/terminal-ss.png)
 
 ### Amazon ECR Images
 
@@ -46,8 +50,9 @@ The microservices are continuously deployed to an AWS EKS cluster via AWS Elasti
 * **Frontend Application (`starter/frontend`):** React 18 and TypeScript Single Page Application served via a production Node/Express runtime.
 * **Backend REST API (`starter/backend`):** Python 3.10 Flask service served using uWSGI with enabled Cross-Origin Resource Sharing (CORS).
 * **Container Registry:** Amazon Elastic Container Registry (ECR) for backend and frontend Docker images.
-* **Cluster Orchestration:** Amazon Elastic Kubernetes Service (AWS EKS v1.31) provisioned with Terraform, leveraging Kustomize for declarative GitOps updates.
-* **CI/CD Automation:** GitHub Actions workflows executing dependency caching, linting, testing, image packaging, and zero-downtime rolling releases.
+* **Cluster Orchestration:** Amazon Elastic Kubernetes Service (AWS EKS, cluster `movie-picture-eks`, Kubernetes 1.36) provisioned with Terraform, with Kustomize used to set image tags at deploy time.
+* **Networking:** Both services are exposed through internet-facing AWS load balancers (annotation `service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing`), with the default VPC subnets tagged for load balancer discovery.
+* **CI/CD Automation:** GitHub Actions workflows executing dependency caching, linting, testing, image building, and rolling releases.
 
 ---
 
@@ -58,15 +63,15 @@ The microservices are continuously deployed to an AWS EKS cluster via AWS Elasti
 Workflow name: **Frontend Continuous Integration**. Triggered on pull requests targeting `main` and via `workflow_dispatch`:
 
 * **Lint Job:**
-  * Checkout code and Node.js 18 setup.
-  * **Cache:** Restores `~/.npm` dependencies using `actions/cache@v3` prior to installation.
-  * Dependency installation via `npm ci` followed by ESLint verification (`npm run lint`).
+  * Checkout code and Node.js setup.
+  * **Cache:** Restores npm dependencies prior to installation.
+  * Dependency installation via `npm ci`, followed by ESLint verification (`npm run lint`).
 * **Test Job (runs in parallel with Lint):**
-  * Checkout code and Node.js 18 setup.
-  * **Cache:** Restores `~/.npm` dependencies using `actions/cache@v3` prior to installation.
-  * Dependency installation via `npm ci`, then Jest test suites in non-interactive mode (`npm test -- --watchAll=false`).
-* **Build Job (requires `[lint, test]`):**
-  * Checkout code, Node.js 18 setup, cache restore, and dependency installation.
+  * Checkout code and Node.js setup.
+  * **Cache:** Restores npm dependencies prior to installation.
+  * Dependency installation via `npm ci`, then Jest tests in non-interactive mode (`npm test -- --watchAll=false`).
+* **Build Job (requires `[lint, test]` via `needs`):**
+  * Checkout code, Node.js setup, cache restore, and dependency installation.
   * Application image built with Docker (`docker build`).
 
 ### 2. Backend Continuous Integration (`backend-ci.yaml`)
@@ -75,36 +80,37 @@ Workflow name: **Backend Continuous Integration**. Triggered on pull requests ta
 
 * **Lint Job:** Runs `flake8` under Pipenv.
 * **Test Job (runs in parallel with Lint):** Runs `pytest` under Pipenv.
-* **Build Job (requires `[lint, test]`):** Builds the backend Docker image.
+* **Build Job (requires `[lint, test]` via `needs`):** Builds the backend Docker image.
 
 ### 3. Backend Continuous Deployment (`backend-cd.yaml`)
 
 Workflow name: **Backend Continuous Deployment**. Triggered on push to `main` modifying `starter/backend/**` and via `workflow_dispatch`:
 
-* Executes Python code standards validation (`flake8`) and test suites (`pytest`) under Pipenv.
-* Authenticates with AWS ECR via `aws-actions/amazon-ecr-login@v1`.
-* Builds, tags, and pushes backend Docker images to Amazon ECR.
-* Updates the Kubernetes deployment image with `kustomize edit set image` and applies the manifest.
-* **Deployment Verification & Logging:**
-  * Performs rollout status verification: `kubectl rollout status deployment/backend --timeout=180s`.
-  * Emits full cluster state: `kubectl get all`.
-  * Emits deployment metadata: `kubectl describe deploy backend`.
-  * Validates ECR image details: `aws ecr describe-images --repository-name backend --image-ids imageTag=latest`.
+* **Lint and Test jobs** run in parallel (`flake8` and `pytest` under Pipenv).
+* **Build-and-deploy job** (requires `[lint, test]`):
+  * Authenticates with AWS using GitHub Secrets and logs in to ECR via `aws-actions/amazon-ecr-login`.
+  * Builds, tags, and pushes the backend Docker image to Amazon ECR.
+  * Updates the Kubernetes deployment image with `kustomize edit set image` and applies the manifests.
+  * **Deployment verification & logging:**
+    * `kubectl rollout status deployment/backend --timeout=180s`
+    * `kubectl get all`
+    * `kubectl describe deploy backend`
+    * `aws ecr describe-images --repository-name backend --image-ids imageTag=latest`
 
 ### 4. Frontend Continuous Deployment (`frontend-cd.yaml`)
 
 Workflow name: **Frontend Continuous Deployment**. Triggered on push to `main` modifying `starter/frontend/**` and via `workflow_dispatch`:
 
-* Executes cached dependency installations (`actions/cache@v3`), ESLint checks, and Jest tests.
-* Builds the production Docker image (only after lint and test succeed, via `needs`) with build-arg injection:
-  `--build-arg REACT_APP_MOVIE_API_URL=${{ secrets.REACT_APP_MOVIE_API_URL }}`
-* Pushes the compiled frontend container image to Amazon ECR.
-* Deploys the service to AWS EKS using Kustomize.
-* **Deployment Verification & Logging:**
-  * Verifies rollout health: `kubectl rollout status deployment/frontend --timeout=180s`.
-  * Emits full cluster state: `kubectl get all`.
-  * Emits deployment metadata: `kubectl describe deploy frontend`.
-  * Validates ECR image details: `aws ecr describe-images --repository-name frontend --image-ids imageTag=latest`.
+* **Lint and Test jobs** run in parallel (ESLint and Jest, with npm caching).
+* **Build-and-deploy job** (requires `[lint, test]`):
+  * Authenticates with AWS using GitHub Secrets and logs in to ECR via `aws-actions/amazon-ecr-login`.
+  * Builds the production Docker image with the backend URL injected as a build argument (`--build-arg REACT_APP_MOVIE_API_URL`, read from a GitHub Secret).
+  * Pushes the frontend image to Amazon ECR and deploys to EKS using Kustomize.
+  * **Deployment verification & logging:**
+    * `kubectl rollout status deployment/frontend --timeout=180s`
+    * `kubectl get all`
+    * `kubectl describe deploy frontend`
+    * `aws ecr describe-images --repository-name frontend --image-ids imageTag=latest`
 
 ---
 
@@ -118,10 +124,10 @@ No credentials are stored in the repository or workflow files. The following rep
 | `AWS_SECRET_ACCESS_KEY` | AWS IAM Secret Access Key |
 | `AWS_SESSION_TOKEN` | AWS STS Session Token (for Learner Lab sessions) |
 | `AWS_DEFAULT_REGION` | `us-east-1` |
-| `EKS_CLUSTER_NAME` | `cluster` |
+| `EKS_CLUSTER_NAME` | `movie-picture-eks` |
 | `BACKEND_ECR_REPO` | `backend` |
 | `FRONTEND_ECR_REPO` | `frontend` |
-| `REACT_APP_MOVIE_API_URL` | Backend Load Balancer URL (set after backend is deployed; no `/movies` suffix) |
+| `REACT_APP_MOVIE_API_URL` | Backend load balancer URL (e.g. `http://<backend-elb-hostname>`, no `/movies` suffix, no trailing slash) |
 
 ---
 
