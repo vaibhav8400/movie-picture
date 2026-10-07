@@ -22,8 +22,8 @@ The microservices are continuously deployed to an AWS EKS cluster via AWS Elasti
 | :--- | :--- |
 | Frontend CD | ![Frontend CD](screenshots/frontend-cd.png) |
 | Backend CD | ![Backend CD](screenshots/backend-cd.png) |
-| Frontend CI | ![Frontend CI](screenshots/frontend-ci.png) |
-| Backend CI | ![Backend CI](screenshots/backend-ci.png) |
+
+> Frontend CI and Backend CI screenshots will be added after the pull request runs (`screenshots/frontend-ci.png`, `screenshots/backend-ci.png`).
 
 ### Deployed Applications
 
@@ -41,7 +41,13 @@ The microservices are continuously deployed to an AWS EKS cluster via AWS Elasti
 
 ### Amazon ECR Images
 
-![ECR images](screenshots/ecr.png)
+**Backend repository (`backend-ecr-repo`):**
+
+![ECR backend](screenshots/backend-ecr.png)
+
+**Frontend repository (`frontend-ecr-repo`):**
+
+![ECR frontend](screenshots/frontend-ecr.png)
 
 ---
 
@@ -95,7 +101,7 @@ Workflow name: **Backend Continuous Deployment**. Triggered on push to `main` mo
     * `kubectl rollout status deployment/backend --timeout=180s`
     * `kubectl get all`
     * `kubectl describe deploy backend`
-    * `aws ecr describe-images --repository-name backend --image-ids imageTag=latest`
+    * `aws ecr describe-images --repository-name backend-ecr-repo --image-ids imageTag=latest`
 
 ### 4. Frontend Continuous Deployment (`frontend-cd.yaml`)
 
@@ -110,7 +116,7 @@ Workflow name: **Frontend Continuous Deployment**. Triggered on push to `main` m
     * `kubectl rollout status deployment/frontend --timeout=180s`
     * `kubectl get all`
     * `kubectl describe deploy frontend`
-    * `aws ecr describe-images --repository-name frontend --image-ids imageTag=latest`
+    * `aws ecr describe-images --repository-name frontend-ecr-repo --image-ids imageTag=latest`
 
 ---
 
@@ -125,8 +131,8 @@ No credentials are stored in the repository or workflow files. The following rep
 | `AWS_SESSION_TOKEN` | AWS STS Session Token (for Learner Lab sessions) |
 | `AWS_DEFAULT_REGION` | `us-east-1` |
 | `EKS_CLUSTER_NAME` | `movie-picture-eks` |
-| `BACKEND_ECR_REPO` | `backend` |
-| `FRONTEND_ECR_REPO` | `frontend` |
+| `BACKEND_ECR_REPO` | `backend-ecr-repo` |
+| `FRONTEND_ECR_REPO` | `frontend-ecr-repo` |
 | `REACT_APP_MOVIE_API_URL` | Backend load balancer URL (e.g. `http://<backend-elb-hostname>`, no `/movies` suffix, no trailing slash) |
 
 ---
