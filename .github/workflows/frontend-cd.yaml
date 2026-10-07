@@ -61,7 +61,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.FRONTEND_ECR_REPO }}
-          IMAGE_TAG: latest
+          IMAGE_TAG: ${{ github.sha }}
           API_URL: ${{ secrets.REACT_APP_MOVIE_API_URL }}
         run: |
           API_URL_CLEAN=$(echo -n "$API_URL" | tr -d '[:space:]')
@@ -78,7 +78,7 @@ jobs:
       - name: Deploy to Kubernetes via Kustomize
         run: |
           cd starter/frontend/k8s
-          kustomize edit set image frontend=${{ steps.login-ecr.outputs.registry }}/${{ secrets.FRONTEND_ECR_REPO }}:latest
+          kustomize edit set image frontend=${{ steps.login-ecr.outputs.registry }}/${{ secrets.FRONTEND_ECR_REPO }}:${{ github.sha }}
           kustomize build . | kubectl apply -f -
 
       - name: Verify Kubernetes deployment
@@ -92,4 +92,4 @@ jobs:
       - name: Verify Frontend ECR image
         run: |
           echo "----- Logging - Frontend ECR Image Details -----"
-          AWS_PAGER="" aws ecr describe-images --repository-name ${{ secrets.FRONTEND_ECR_REPO }} --image-ids imageTag=latest
+          AWS_PAGER="" aws ecr describe-images --repository-name ${{ secrets.FRONTEND_ECR_REPO }} --image-ids imageTag=${{ github.sha }}
