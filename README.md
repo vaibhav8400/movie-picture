@@ -23,7 +23,14 @@ The microservices are continuously deployed to an AWS EKS cluster via AWS Elasti
 | Frontend CD | ![Frontend CD](screenshots/frontend-cd.png) |
 | Backend CD | ![Backend CD](screenshots/backend-cd.png) |
 
-> Frontend CI and Backend CI screenshots will be added after the pull request runs (`screenshots/frontend-ci.png`, `screenshots/backend-ci.png`).
+### Two consecutive automatic releases
+
+The following screenshots document two successive merges to `main`, each followed by successful frontend and backend deployments, without manual pod restarts:
+
+| Release | CI checks | Automatic CD runs | Frontend | Backend API |
+| :--- | :--- | :--- | :--- | :--- |
+| Release 1 | Pull request #1 (6 checks passed) | ![Release 1 CD](screenshots/release-1-cd.png) | ![Release 1 frontend](screenshots/release-1-frontend.png) | ![Release 1 backend](screenshots/release-1-backend.png) |
+| Release 2 | ![Release 2 CI](screenshots/release-2-ci.png) | ![Release 2 CD](screenshots/release-2-cd.png) | ![Release 2 frontend](screenshots/release-2-frontend.png) | ![Release 2 backend](screenshots/release-2-backend.png) |
 
 ### Deployed Applications
 
@@ -101,7 +108,7 @@ Workflow name: **Backend Continuous Deployment**. Triggered on push to `main` mo
     * `kubectl rollout status deployment/backend --timeout=180s`
     * `kubectl get all`
     * `kubectl describe deploy backend`
-    * `aws ecr describe-images --repository-name backend-ecr-repo --image-ids imageTag=latest`
+    * Verifies the ECR image using the same commit SHA tag used to build, push, and deploy it.
 
 ### 4. Frontend Continuous Deployment (`frontend-cd.yaml`)
 
@@ -116,7 +123,7 @@ Workflow name: **Frontend Continuous Deployment**. Triggered on push to `main` m
     * `kubectl rollout status deployment/frontend --timeout=180s`
     * `kubectl get all`
     * `kubectl describe deploy frontend`
-    * `aws ecr describe-images --repository-name frontend-ecr-repo --image-ids imageTag=latest`
+    * Verifies the ECR image using the same commit SHA tag used to build, push, and deploy it.
 
 ---
 
